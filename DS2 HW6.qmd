@@ -2,7 +2,7 @@
 title: "HW6"
 author: "Josie Yaroch"
 editor: visual
-format: pdf
+format: html
 execute:
   echo: true
   message: false
