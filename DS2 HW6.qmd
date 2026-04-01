@@ -88,7 +88,98 @@ mutate(season_episode = sprintf("S%02d E%02d", season, episode)) |>
       theme_minimal() +
       theme(axis.text.x = element_text(angle = 0, vjust = 0.5)) +
       labs(x = "Season", color = "Season", y = "Sentiment Score")
-  })()
+    })()
+```
+
+making a separate plot for each season as comment above suggests-
+
+```{r}
+df <- theoffice |>
+  mutate(season_episode = sprintf("S%02d E%02d", season, episode)) |>    
+  unnest_tokens(word, text) |> 
+  inner_join(sentiments, by = join_by(word)) |>
+  group_by(season, episode, season_episode) |> 
+  summarize(
+    pos_sent = sum(sentiment == "positive"),
+    neg_sent = sum(sentiment == "negative"),
+    sent_score = pos_sent - neg_sent,
+    .groups = "drop"
+  ) |> 
+  arrange(season, episode) |> 
+  mutate(season_episode = factor(season_episode, levels = unique(season_episode)))
+
+season_starts <- df |> 
+  group_by(season) |> 
+  slice_min(episode, with_ties = FALSE) |> 
+  ungroup()
+
+ggplot(
+  df,
+  aes(
+    x = season_episode,
+    y = sent_score,
+    group = season,
+    color = factor(season)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  scale_x_discrete(
+    breaks = season_starts$season_episode,
+    labels = sprintf("S%02d", season_starts$season)
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5)) +
+  labs(
+    x = "Season",
+    color = "Season",
+    y = "Sentiment Score"
+  ) +
+  facet_wrap(~ season)
+```
+
+need to change x-axis to be just episode, not season_episode. As is, you can't really see the trends and have a lot of empty space on each plot
+
+```{r}
+df <- theoffice |>
+  unnest_tokens(word, text) |> 
+  inner_join(sentiments, by = join_by(word)) |>
+  group_by(season, episode) |> 
+  summarize(
+    pos_sent = sum(sentiment == "positive"),
+    neg_sent = sum(sentiment == "negative"),
+    sent_score = pos_sent - neg_sent,
+    .groups = "drop"
+  ) |> 
+  arrange(season, episode)
+
+season_starts <- df |> 
+  group_by(season) |> 
+  slice_min(episode, with_ties = FALSE) |> 
+  ungroup()
+
+ggplot(
+  df,
+  aes(
+    x = episode, 
+    y = sent_score,
+    group = season,
+    color = factor(season)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(    
+    breaks = season_starts$episode,
+    labels = sprintf("S%02d", season_starts$season)
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Episode",
+    color = "Season",
+    y = "Sentiment Score"
+  ) +
+  facet_wrap(~ season)
 ```
 
 I like how each of the seasons are represented by colors, but I see that S01 and S02 are together on the x-axis - Jake G
@@ -137,13 +228,13 @@ anova(regOffice)
 
 Very cool Anova table, but in the graph I think that hollow points don't help the figure visually - Jake G
 
+I'm confused on what is meant by hollow points in the above comment.
+
 ### Sentiment Negation
 
 Identify at least a few negations that change the sentiment values based on the text. Use this to recreate the graphs above (or do this first, then create the graphs).
 
 ```{r}
-
-
 #Sentiment Reversal RandJ - 5910 
 #common negation words : not, no, none, never, nothing, nobody, nowhere, neither, nor, hardly, seldom, rarely, scarcely
 negation_words0 <- c("not", "no", "none", "never", "nothing", "nobody", "nowhere", "neither", "nor", "hardly", "seldom", "rarely", "scarcely")
@@ -216,10 +307,6 @@ theoffice0 |>
 #this gives count of sentiments after negation
 
 
-
-
-
-
 # --- Base unigram sentiment per episode (assumes `sentiments` is the 'bing' lexicon) ---
 epi_base <- theoffice |>
   mutate(season_episode = sprintf("S%02d E%02d", season, episode)) |>
@@ -278,6 +365,129 @@ theoffice00 |>
 
 ```
 
+The plot shows that as sentiment score increases, IMDb rating also tends to increase. This is true in this plot and the previous plot, showing that the trend is true when you consider the effect of negation words on the sentiment score and when you do not consider negation words
+
 Maybe use lexicon list of negative words to help with negation - Jake G
 
-The plot shows that as sentiment score increases, IMDb rating also tends to increase. This is true in this plot and the previous plot, showing that the trend is true when you consider the effect of negation words on the sentiment score and when you do not consider negation words
+```{r}
+neg_bing <- get_sentiments("bing") |> 
+  filter(sentiment == "negative")
+
+
+# looking at count of word1:
+theoffice0 |> 
+  # filter(name == "Romeo and Juliet") |>  # only RandJ 
+  select(text) |> 
+  unnest_tokens(bigram, text, "ngrams", n = 2) |> # Tokenize
+  # mutate(word1 = word(bigram,1))  # one option
+  separate(bigram, into = c("word1", "word2"), remove = F) |>  
+  inner_join(sentiments, by = c("word2" = "word")) |>   # Merge with Sentiment Lexicon 
+  count(word1, sort = T) |>  
+  filter(word1 %in% neg_bing)  |> 
+  group_by(word1) |> 
+  count(word1, sort = T)
+
+
+#in bigram, if word1 %in% neg_bing & word2 is a sentiment (already filtered for this), then reverse the sentiment of word2
+theoffice0 |> 
+  # filter(name == "Romeo and Juliet") |>  # only RandJ 
+  select(text) |> 
+  unnest_tokens(bigram, text, "ngrams", n = 2) |> # Tokenize
+  # mutate(word1 = word(bigram,1))  # one option
+  separate(bigram, into = c("word1", "word2"), remove = F) |>  
+  inner_join(sentiments, by = c("word2" = "word")) |>   # Merge with Sentiment Lexicon 
+  count(word1, sort = T) |>  
+  filter(word1 %in% neg_bing) |> 
+  head(10)
+  
+
+theoffice0 |>
+  select(text) |>
+  # Explicit token arg; consider strip_punct = FALSE to preserve "isn't"
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) |>
+  separate(bigram, into = c("word1", "word2"), sep = " ", remove = FALSE) |>
+  # Join sentiment for the second word of the bigram
+  inner_join(sentiments, by = c("word2" = "word")) |>
+  # Keep only bigrams where word1 is a negation trigger
+  filter(word1 %in% neg_bing) |>
+  #Flip the sentiment label INSIDE mutate(), not piping into case_when()
+  mutate(
+    sentiment = case_when(
+      sentiment == "positive" ~ "negative",
+      sentiment == "negative" ~ "positive",
+      TRUE ~ sentiment
+    )
+  ) |>
+  count(sentiment, sort = TRUE) |>
+  ggplot(aes(x = sentiment, y = n, fill = sentiment)) +
+  geom_col() +
+  labs(
+    title = "Sentiment of words following negation words in The Office",
+    x = "Flipped sentiment of word2 after negation",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = c("positive" = "lightblue", "negative" = "salmon"))
+
+#this gives count of sentiments after negation
+
+
+# --- Base unigram sentiment per episode (assumes `sentiments` is the 'bing' lexicon) ---
+epi_base <- theoffice |>
+  mutate(season_episode = sprintf("S%02d E%02d", season, episode)) |>
+  unnest_tokens(word, text) |>
+  inner_join(sentiments, by = join_by(word)) |>
+  group_by(season, episode, season_episode) |>
+  summarise(
+    pos = sum(sentiment == "positive"),
+    neg = sum(sentiment == "negative"),
+    .groups = "drop"
+  )
+
+# --- Negated bigrams per episode (negator + sentiment-bearing word2) ---
+epi_neg <- theoffice |>
+  mutate(season_episode = sprintf("S%02d E%02d", season, episode)) |>
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) |>
+  separate(bigram, into = c("word1", "word2"), sep = " ", remove = FALSE, fill = "right") |>
+  filter(!is.na(word2)) |>
+  filter(word1 %in% neg_bing) |>
+  inner_join(sentiments, by = c("word2" = "word")) |>
+  group_by(season, episode, season_episode) |>
+  summarise(
+    negated_pos = sum(sentiment == "positive"),
+    negated_neg = sum(sentiment == "negative"),
+    .groups = "drop"
+  )
+
+# --- Combine, compute adjusted score, and bring in IMDb rating ---
+theoffice00 <- epi_base |>
+  full_join(epi_neg, by = c("season", "episode", "season_episode")) |>
+  mutate(
+    across(c(pos, neg, negated_pos, negated_neg), ~ tidyr::replace_na(.x, 0L)),
+    sent_score_raw = pos - neg,
+    sent_score     = sent_score_raw - 2L * negated_pos + 2L * negated_neg
+  ) |>
+  left_join(
+    theoffice |>
+      select(season, episode, imdb_rating) |>
+      distinct(),
+    by = c("season", "episode")
+  ) |>
+  arrange(season, episode) |>
+  mutate(season_episode = factor(season_episode, levels = unique(season_episode)))
+
+##final plot for question 3
+theoffice00 |>
+  ggplot(aes(x = sent_score, y = imdb_rating)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_minimal() +
+  labs(
+    title = "Episode Sentiment vs IMDb Rating (negation-aware)",
+    x = "Sentiment Score (negation-adjusted)",
+    y = "IMDb Rating"
+  )
+```
+
+Using the bing negative words lexicon didn't seem to affect the resulting plot, but is definitely easier than listing out negation words and ensures no words get left out.
