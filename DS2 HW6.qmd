@@ -2,7 +2,7 @@
 title: "HW6"
 author: "Josie Yaroch"
 editor: visual
-format: html
+format: pdf
 execute:
   echo: true
   message: false
@@ -53,6 +53,8 @@ mutate(season_episode = sprintf("S%02d E%02d", season, episode)) |>    unnest_to
 ##this plot is very messy - can't read labels on x-axis
 ```
 
+Maybe there is a way to make a different plot for each season and just look at episodes for each of the seasons - Jake G
+
 ```{r}
 theoffice |> 
 mutate(season_episode = sprintf("S%02d E%02d", season, episode)) |>    
@@ -88,6 +90,8 @@ mutate(season_episode = sprintf("S%02d E%02d", season, episode)) |>
       labs(x = "Season", color = "Season", y = "Sentiment Score")
   })()
 ```
+
+I like how each of the seasons are represented by colors, but I see that S01 and S02 are together on the x-axis - Jake G
 
 ### By Rating
 
@@ -130,6 +134,8 @@ summary(regOffice)
 anova(regOffice)
 #Based on anova table, this model appears to be a good fit (p<<0.05)
 ```
+
+Very cool Anova table, but in the graph I think that hollow points don't help the figure visually - Jake G
 
 ### Sentiment Negation
 
@@ -271,5 +277,7 @@ theoffice00 |>
   )
 
 ```
+
+Maybe use lexicon list of negative words to help with negation - Jake G
 
 The plot shows that as sentiment score increases, IMDb rating also tends to increase. This is true in this plot and the previous plot, showing that the trend is true when you consider the effect of negation words on the sentiment score and when you do not consider negation words
